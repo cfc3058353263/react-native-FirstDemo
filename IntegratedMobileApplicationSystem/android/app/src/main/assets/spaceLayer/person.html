@@ -1,0 +1,271 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>人员图层</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="./libs/SuperMap.Include.js"></script>
+    <script src="./libs/InfoWindows.js"></script>
+    <link href="./libs/infoWindows.css" rel="stylesheet" />
+    <link href="./theme/default/style.css" rel="stylesheet" />
+</head>
+
+<style>
+    .popup-table {
+        margin: 10px;
+        border-spacing: 0
+    }
+
+    .popup-td {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+    }
+
+    .popup-td1 {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+        background-color: rgba(69, 214, 194, 0.41);
+    }
+
+    div.smMap {
+        border: 0
+    }
+
+    .main {
+        height: 75px;
+        background-color: #fafcff;
+        border-radius: 6px;
+        border: solid 1px #2a579a;
+        overflow: hidden
+    }
+
+    .topBtnBox {
+        position: absolute;
+        z-index: 999;
+        width: 100%;
+        bottom: 0;
+    }
+
+    .topBtnBox .main .equipment {
+        float: left;
+        width: 16.5%;
+        text-align: center;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    .topBtnBox .main .equipment div {
+        font-size: 16px;
+        color: #2a569b;
+    }
+
+    .leftBtnTo {
+        width: 90px;
+        height: 40px;
+        text-align: center;
+        float: left;
+        padding: 0;
+        background-color: #2a569b;
+        border-width: 0;
+        color: #fff;
+    }
+</style>
+
+<body onload="init()" style="margin: 0 auto;">
+    <div id="map" style="position:absolute;width: 100%;"></div>
+</body>
+<script type="text/javascript">
+    var token
+    window.onload = function () {
+        console.log(1);
+        document.addEventListener("message", function (event) {
+            token = JSON.parse(event.data)
+            init(event.data)
+        });
+    }
+
+
+    //声明变量map、layer、url SuperMap.Layer.TiledDynamicRESTLayer
+    var map, layer, vectorLayer, markers, marker1, tiandituLayer, vectorLayer, drawPoint
+    url = "http://124.128.244.106:9100/iserver/services/map-JDDSgis/rest/maps/JDDS";
+    var vectorInfoWin, markerInfoWin;
+    function init() {
+        console.log(2);
+        tiandituLayer = new SuperMap.Layer.WMTS({
+            name: "vec",
+            url: "http://www.sdmap.gov.cn/tileservice/SDPubMap?TOPLEFTCORNEREXCHANGE=0&DPI=96",
+            layer: "vec",
+            style: "default",
+            matrixSet: "c",
+            format: "tiles",
+            opacity: 1,
+            requestEncoding: "KVP"
+        });
+        map = new SuperMap.Map("map", {
+            // 控件的添加位置 比如 鹰眼 大小 比例尺
+            controls: [
+                new SuperMap.Control.Navigation(
+                    {
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    }
+                ),
+                // new SuperMap.Control.ScaleLine(),
+                // new SuperMap.Control.OverviewMap(),
+                new SuperMap.Control.Zoom(),
+                new SuperMap.Control.MousePosition()
+            ],
+            //地图所有图层都被当做叠加图层来使用。
+            allOverlays: true
+        });
+        // 提示框的添加
+        markers = new SuperMap.Layer.Markers("createPoint");
+        markers1 = new SuperMap.Layer.Markers("createPoint");
+        vectorLayer = new SuperMap.Layer.Vector("Vector Layer");
+        drawPoint = new SuperMap.Control.DrawFeature(vectorLayer, SuperMap.Handler.Point);
+        drawPoint.events.on({ "featureadded": drawCompleted });
+        // supermap底图的添加
+        layer = new SuperMap.Layer.TiledDynamicRESTLayer("World", url, { transparent: true }, { maxResolution: "auto" });
+        layer.events.on({ "layerInitialized": addLayer });
+        map.addControl(drawPoint);
+        map.addLayer(markers);
+        map.addLayer(markers1);
+        //获取事件点
+        createBeng()
+        // 激活控件
+        // drawPoint.activate()
+
+    }
+    // 获取坐标
+    function drawCompleted(eventArgs) {
+        // 获取传入参数 eventArgs 的几何信息
+        var geometry = eventArgs.feature.geometry;
+        console.log(geometry);
+        var origin = new SuperMap.Geometry.Point(118.229, 37.275);
+        var polygon = SuperMap.Geometry.Polygon.createRegularPolygon(origin, 0.1, 50, 270);
+        var lineVector = new SuperMap.Feature.Vector(polygon);
+        vectorLayer.addFeatures(lineVector);
+
+    }
+    function addLayer() {
+        map.addLayers([tiandituLayer, layer, vectorLayer]);
+        map.setCenter(new SuperMap.LonLat(119.45908, 36.68166), 8);
+        //添加覆盖物
+    }
+
+    autodivheight() // 尺寸方法
+    function autodivheight() {
+        var winHeight = 0;
+        if (window.innerHeight)
+            winHeight = window.innerHeight;
+        else if ((document.body) && (document.body.clientHeight))
+            winHeight = document.body.clientHeight;
+        if (document.documentElement && document.documentElement.clientHeight)
+            winHeight = document.documentElement.clientHeight;
+        //DIV高度为浏览器窗口高度的一半
+        document.getElementById("map").style.height = winHeight + "px";
+    }
+
+    //获取事件点
+    function createBeng() {
+        fetch('http://124.128.244.106:9100/api-yjdd/yjdd/eventLog/getEventLogList?deptId=3700000000&userId=655&roleStr=cs_15&isOtherSystem=y', {
+            method: 'GET',
+            mode: 'cors',
+            headers: {
+                "Content-Type": "application/json;charset=UTF-8",
+                "Authorization": "Bearer " + token  //用户登陆后返回的token，某些涉及用户数据的接口需要在header中加上token
+            }
+        }).then(function (response) {
+            if (response.status !== 200) {
+
+                return;
+            }
+            return response.json();
+        }).then((e) => {
+            const data = e.rows
+            for (var item of data) {
+                var _maker = this
+                size = new SuperMap.Size(30, 30);
+                offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+                var icon = new SuperMap.Icon('./img/marker-gold.png', size, offset);
+                var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+                // 判断事件状态是否显示
+                if (item.status === "0") {
+                    markers.addMarker(_maker);
+                }
+                _maker.a = item.event_name
+                _maker.lgtd = item.lgtd
+                _maker.lttd = item.lttd
+                _maker.events.on({
+                    "click": onFeatureSelected,
+                    "touchend": onFeatureSelected,
+                    "scope": _maker
+                });
+                function onFeatureSelected(event) {
+                    vectorLayer.removeAllFeatures();
+                    map.zoomTo(13)
+                    var maker = this
+                    var origin = new SuperMap.Geometry.Point(maker.lgtd, maker.lttd);
+                    var polygon = SuperMap.Geometry.Polygon.createRegularPolygon(origin, 3000 / 100000, 50, 270);
+                    var lineVector = new SuperMap.Feature.Vector(polygon);
+                    vectorLayer.addFeatures(lineVector);
+                    closeVectorInfoWin();
+                    //创建一个具有指向和边框的浮动弹窗
+                    var popup = new SuperMap.Popup.FramedCloud(
+                        "popwin",
+                        new SuperMap.LonLat(maker.lgtd, maker.lttd),
+                        null,
+                        "事件名称：" + maker.a,
+                        null,
+                        true);
+                    vectorInfoWin = popup;
+                    //在地图中添加弹出窗口
+                    map.addPopup(popup);
+                };
+                //a.3. 销毁 Popup.FramedCloud 弹窗。
+                function closeVectorInfoWin() {
+                    if (vectorInfoWin) {
+                        vectorInfoWin.hide();
+                        vectorInfoWin.destroy();
+                    }
+                }
+            }
+        });
+    }
+
+    // 与RN的交互
+    function deviceparamTo(name) {
+        var obj = {
+            "name": "a",
+            "stionName": name,
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+
+    function abcTo(name) {
+        var obj = {
+            "name": "b",
+            "station": name
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+    function abcK() {
+        var obj = {
+            "name": "c",
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+</script>
+
+
+</html>

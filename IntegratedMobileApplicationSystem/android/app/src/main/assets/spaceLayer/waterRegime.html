@@ -1,0 +1,298 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>水质图层</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="./libs/SuperMap.Include.js"></script>
+    <script src="./libs/InfoWindows.js"></script>
+    <link href="./libs/infoWindows.css" rel="stylesheet" />
+    <link href="./theme/default/style.css" rel="stylesheet" />
+</head>
+
+<body onload="init()" style="margin: 0 auto;">
+    <div id="map" style="position:absolute;left:0px;right:0px;width:100%;height:100%;">
+    </div>
+</body>
+<script type="text/javascript">
+    //声明变量map、layer、url SuperMap.Layer.TiledDynamicRESTLayer
+    var map, layer, vectorLayer, markers,tiandituLayer
+        url = "http://124.128.244.106:9100/iserver/services/map-JDDSgis/rest/maps/JDDS";
+    var vectorInfoWin, markerInfoWin;
+    function init() {
+        tiandituLayer = new SuperMap.Layer.WMTS({
+            name: "vec",
+            url: "http://www.sdmap.gov.cn/tileservice/SDPubMap?TOPLEFTCORNEREXCHANGE=0&DPI=96",
+            layer: "vec",
+            style: "default",
+            matrixSet: "c",
+            format: "tiles",
+            opacity: 1,
+            requestEncoding: "KVP"
+        });
+        map = new SuperMap.Map("map", {
+            // 控件的添加位置 比如 鹰眼 大小 比例尺
+            controls: [
+                new SuperMap.Control.Navigation(
+                    {
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    }
+                ),
+                new SuperMap.Control.ScaleLine(),
+                // new SuperMap.Control.OverviewMap(),
+                new SuperMap.Control.Zoom(),
+                new SuperMap.Control.MousePosition()
+            ],
+            //地图所有图层都被当做叠加图层来使用。
+            allOverlays: true
+        });
+        // 提示框的添加
+        markers = new SuperMap.Layer.Markers("createPoint");
+        // supermap底图的添加
+        layer = new SuperMap.Layer.TiledDynamicRESTLayer("World", url, { transparent: true }, { maxResolution: "auto" });
+        layer.events.on({ "layerInitialized": addLayer });
+        map.addLayer(markers);
+    }
+    function addLayer() {
+        map.addLayers([tiandituLayer,layer]);
+        map.setCenter(new SuperMap.LonLat(119.45908, 36.68166), 8);
+        //添加覆盖物
+        createPoint1()
+    }
+    function createPoint1() {
+        var a1 = [{
+            "device_code": "AEA37060102B001",
+            "device_name": "黄水河泵站水质测站",
+            "device_position": "120.61452, 37.63172",
+            "device_number": "010000A8900016F000169DC0",
+            "DEVICE_CODE": "AAC37060102B001",
+            "DEVICE_RELEGATION": "297e01f06e9b3102016e9b35a30f0000"
+        },
+        {
+            "device_code": "AEA37060604B001",
+            "device_name": "高疃泵站水质测站",
+            "device_position": "121.11547, 37.47140",
+            "device_number": "010000A8900016F000169DC1",
+            "DEVICE_CODE": "AAC37060604B001",
+            "DEVICE_RELEGATION": "297e01f06e9b3102016e9b36a8590004"
+        },
+        {
+            "device_code": "AEA37070207B001",
+            "device_name": "宋庄泵站上游水质测站",
+            "device_position": "119.47407, 36.76855",
+            "device_number": "010000A8900016F000169DC4",
+            "DEVICE_CODE": "AAC37070207B001",
+            "DEVICE_RELEGATION": "297e01f06e9b3102016e9b38d0950008"
+        },
+        {
+            "device_code": "AEA37060204B001",
+            "device_name": "东宋泵站水质测站",
+            "device_position": "119.81180, 37.14436",
+            "device_number": "010000A8900016F000169DC2",
+            "DEVICE_CODE": "AAC37060204B001",
+            "DEVICE_RELEGATION": "297e01f06e982a8c016e9b2778330000"
+        },
+        {
+            "device_code": "AEA37070207B002",
+            "device_name": "宋庄泵站下游水质测站",
+            "device_position": "119.47500, 36.76834",
+            "device_number": "010000A8900016F000169DC5",
+            "DEVICE_CODE": "AAC37070207B002",
+            "DEVICE_RELEGATION": "297e01f06e9b3102016e9b405cd10009"
+        },
+        {
+            "device_code": "AAC37020112B001",
+            "device_name": "灰埠泵站水质测站",
+            "device_position": "119.70521, 36.98648",
+            "device_number": "010000A8900016F000169DC3",
+            "DEVICE_CODE": "AAC37020112B001",
+            "DEVICE_RELEGATION": "297e01f06e9b3102016e9b415458000d"
+        }];
+
+        for (var i = 0; i < a1.length; i++) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./img/水质监测站点.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(a1[i].device_position.split(',')[0], a1[i].device_position.split(',')[1]), icon)
+            _maker.a = a1[i].device_name;
+            _maker.mn = a1[i].device_number;
+            _maker.DEVICE_CODE = a1[i].DEVICE_CODE;
+            _maker.DEVICE_RELEGATION = a1[i].DEVICE_RELEGATION
+            markers.addMarker(_maker);
+            _maker.events.on({
+                "click": mouseClickHandler,
+                "touchend": mouseClickHandler,
+                "scope": _maker
+            });
+            var infowin = null;
+            function mouseClickHandler(event) {
+                map.removeAllPopup();
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                //初始化popup类
+                var contentHTML = "<div style='   font-size:12px; opacity: 0.8' >";
+                contentHTML += "<table style='width:100%;height:100%;'><tbody><tr><td>" + marker.a + "</td></tr><tr><td style='width:50%;'>ph值:20</td><td>cod:8</td></tr> <tr><td>pod:10</td><td>氧化物:8</td></tr> </tbody></table>   ";
+                size = new SuperMap.Size(30, 30);
+                offset = new SuperMap.Pixel(-(size.w), -size.h * 2 / 3);
+                icon = new SuperMap.Icon('img/markerbig_select.png', size, offset);
+                popup = new SuperMap.Popup(
+                    "chicken",
+                    marker.getLonLat(),
+                    new SuperMap.Size(440, 280),
+                    "<div>123456</div></div>",
+                    true,
+                    null
+                );
+
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                //设置弹窗的位置
+                markerPop.setLonLat(marker.getLonLat());
+
+                fetch('http://124.128.244.106:9100/gate/selectStation?mn=' + marker.mn, {
+                    method: 'GET',
+                    mode: 'cors',
+                }).then(function (response) {
+                    if (response.status !== 200) {
+
+                        return;
+                    }
+                    return response.json();
+                }).then((e) => {
+                    var type = e
+                    if (type.data.length != 0) {
+                        if (type.data[0].硝氮 == null) {
+                            type.data[0].硝氮 = ''
+                        }
+                        if (type.data[0].氟化物 == null) {
+                            type.data[0].氟化物 = ''
+                        }
+                        if (type.data[0].硫化物 == null) {
+                            type.data[0].硫化物 = ''
+                        }
+                    }
+
+                    if (type.data.length == 0) {
+
+                        markerPop.setContentHTML(null, "<table class='popup-table'><tbody><tr><td class='popup-td1'>硝氮</td><td class='popup-td'></td></tr> <tr><td class='popup-td1'>氨氮</td><td class='popup-td'></td></tr> <tr><td class='popup-td1'>氟化物（以Fˉ计）</td><td class='popup-td'></td></tr> <tr><td class='popup-td1'>硫化物</td><td class='popup-td'></td></tr> </tbody></table><input type='button' class= 'rightBtn' style='margin-left:80px;margin-top:10px;margin-right:10px' value='详情信息' class='btn btn-default'  onclick='abc(" + null + ")' />");
+                        console.log(1);
+                    } else {
+                        markerPop.setContentHTML(null, "<table class='popup-table'><tbody><tr><td class='popup-td1'>硝氮</td><td class='popup-td'>" + type.data[0].硝氮 + "</td></tr> <tr><td class='popup-td1'>氨氮</td><td class='popup-td'>" + type.data[0].氨氮 + "</td></tr> <tr><td class='popup-td1'>氟化物（以Fˉ计）</td><td class='popup-td'>" + type.data[0].氟化物 + "</td></tr> <tr><td class='popup-td1'>硫化物</td><td class='popup-td'>" + type.data[0].硫化物 + "</td></tr> </tbody></table><input type='button' class= 'rightBtn' style='margin-left:80px;margin-top:10px;margin-right:10px' value='详情信息' class='btn btn-default'  onclick='abc(\"" + type.data[0].MN + "\")' /> ");
+                    }
+                    framedCloud = new SuperMap.Popup.FramedCloud(
+                        "chicken",
+                        marker.getLonLat(),
+                        null,
+                        contentHTML,
+                        icon,
+                        true,
+                        null,
+                        true
+                    );
+                    popup.setBackgroundColor("#FFBBBB");
+
+                    infowin = markerPop;
+
+                    //添加弹窗到map图层
+                    map.addPopup(markerPop);
+                })
+
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    function deviceparam(relegation) {
+        var obj = {
+            "name": "a",
+            "id": relegation,
+        };
+        var data = JSON.stringify(obj)
+        console.log(data);
+
+        window.ReactNativeWebView.postMessage(data);
+    }
+    function abc(mn) {
+        var obj = {
+            "name": "b",
+            "mn": mn,
+        };
+        var data = JSON.stringify(obj)
+        console.log(data);
+
+        window.ReactNativeWebView.postMessage(data);
+
+    }
+</script>
+<style>
+    .popup-table {
+        margin: 10px;
+        border-spacing: 0
+    }
+
+    .popup-td {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+    }
+
+
+    .popup-td1 {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+        background-color: rgba(69, 214, 194, 0.41);
+    }
+
+    .rightBtn {
+        width: 130px;
+        height: 40px;
+        line-height: 40px;
+        text-align: center;
+        background-color: #2a579a;
+        border-radius: 4px;
+        float: left;
+        color: #fff;
+        border: 0;
+        margin-left: 10;
+    }
+
+    .leftBtn {
+        width: 130px;
+        height: 40px;
+        line-height: 40px;
+        text-align: center;
+        background-color: #2a579a;
+        border-radius: 4px;
+        float: left;
+        color: #fff;
+        border: 0;
+    }
+
+    div.smMap {
+        border: 0
+    }
+</style>
+
+</html>

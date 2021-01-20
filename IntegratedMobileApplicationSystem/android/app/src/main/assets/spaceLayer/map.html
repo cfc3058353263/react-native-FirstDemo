@@ -1,0 +1,1792 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>地图</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="./libs/SuperMap.Include.js"></script>
+    <script src="./libs/InfoWindows.js"></script>
+    <link href="./libs/infoWindows.css" rel="stylesheet" />
+    <link href="./theme/default/style.css" rel="stylesheet" />
+</head>
+
+<style>
+    .popup-table {
+        margin: 10px;
+        border-spacing: 0
+    }
+
+    .popup-td {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+    }
+
+    .popup-td1 {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+        background-color: rgba(69, 214, 194, 0.41);
+    }
+
+    div.smMap {
+        border: 0
+    }
+
+    .main {
+        height: 75px;
+        background-color: #fafcff;
+        border-radius: 6px;
+        border: solid 1px #2a579a;
+        overflow: hidden
+    }
+
+    .topBtnBox {
+        position: absolute;
+        z-index: 999;
+        width: 100%;
+        bottom: 0;
+    }
+
+    .topBtnBox .main .equipment {
+        float: left;
+        width: 16.5%;
+        text-align: center;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    .topBtnBox .main .equipment div {
+        font-size: 16px;
+        color: #2a569b;
+    }
+
+    .leftBtnTo {
+        width: 90px;
+        height: 40px;
+        text-align: center;
+        float: left;
+        padding: 0;
+        background-color: #2a569b;
+        border-width: 0;
+        color: #fff;
+    }
+
+    .popup-feishi {
+        background-color: rgba(69, 214, 194, 0.41);
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        font-size: 12px;
+    }
+
+    .popup-feishi1 {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        font-size: 12px;
+        width: 80px;
+    }
+
+    .smFramedCloudPopupContent {
+        overflow: hidden !important;
+        padding-left: 2 !important;
+        padding-right: 2 !important;
+        padding-top: 2 !important;
+        padding-bottom: 0 !important;
+    }
+
+    .rightBtn {
+        width: 130px;
+        height: 40px;
+        line-height: 40px;
+        text-align: center;
+        background-color: #2a579a;
+        border-radius: 4px;
+        float: left;
+        color: #fff;
+        border: 0;
+        margin-left: 10;
+    }
+
+    .popup-fazhan {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        font-size: 12px;
+        width: 100%;
+    }
+</style>
+
+<body onload="init()" style="margin: 0 auto;">
+    <div id="map" style="position:absolute;width: 100%;"></div>
+</body>
+<script type="text/javascript">
+    document.addEventListener("message", function (event) {
+        data = JSON.parse(event.data)
+        if (data.name === '水情') {
+            if (data.type === '水源') {
+                markers1.clearMarkers()
+                data.data && waterRegime(data.data)
+            } else if (data.type === '泵站') {
+                markers2.clearMarkers()
+                data.data && bengStation(data.data)
+            } else if (data.type === '分水口') {
+                markers3.clearMarkers()
+                data.data && feishuikou(data.data)
+            } else if (data.type === '闸站') {
+                markers4.clearMarkers()
+                data.data && zhaStation(data.data)
+            } else if (data.type === '阀站') {
+                markers5.clearMarkers()
+                data.data && faStation(data.data)
+            }
+        } else if (data.name === '工程') {
+            markers.clearMarkers()
+            engineering(data.data)
+        } else if (data.name === '水质') {
+            markers6.clearMarkers()
+            data.data && shuizhi(data.data)
+        } else if (data.name === '事件') {
+            markers7.clearMarkers()
+            data.data && shijian(data.data)
+        } else if (data.name === '定位') {
+            lgtd = data.data.lgtd
+            lttd = data.data.lttd
+            panTo(data.data.lgtd,data.data.lttd)
+        }
+    });
+
+    //声明变量map、layer、url SuperMap.Layer.TiledDynamicRESTLayer 
+    //markers 工程图层 markers1 水源图层 markers2 泵站 markers3 分水口 markers 4 闸站 markers5 阀站 markers6 水质 markers7事件
+    var map, layer, vectorLayer, markers, markers1, markers2, markers3, markers4, markers5, markers6, markers7, markers8, tiandituLayer, vectorLayer, drawPoint, lgtd, lttd
+    url = "http://124.128.244.106:9100/iserver/services/map-JDDSgis/rest/maps/JDDS"; //超图
+    var vectorInfoWin, markerInfoWin;
+    function init() {
+        tiandituLayer = new SuperMap.Layer.WMTS({ // 添加底图
+            name: "vec",
+            url: "http://www.sdmap.gov.cn/tileservice/SDPubMap?TOPLEFTCORNEREXCHANGE=0&DPI=96", //添加天地图地图
+            layer: "vec",
+            style: "default",
+            matrixSet: "c",
+            format: "tiles",
+            opacity: 1,
+            requestEncoding: "KVP"
+        });
+        map = new SuperMap.Map("map", {
+            controls: [
+                new SuperMap.Control.Navigation( //添加控件类
+                    {
+                        dragPanOptions: {
+                            enableKinetic: true //该类可通过鼠标拖拽的方式平移地图。
+                        }
+                    }
+                ),
+                // new SuperMap.Control.ScaleLine(),
+                // new SuperMap.Control.OverviewMap(),
+                new SuperMap.Control.Zoom(), //缩放 
+                new SuperMap.Control.MousePosition() //该控件显示鼠标移动时，所在点的地理坐标。
+            ],
+            allOverlays: true //地图所有图层都被当做叠加图层来使用。
+        });
+
+        // map上创建标记（层），在标记层上添加相应的标记
+        markers = new SuperMap.Layer.Markers("createPoint");  // 工程安全信息
+        markers1 = new SuperMap.Layer.Markers("createPoint"); // 水源信息
+        markers2 = new SuperMap.Layer.Markers("createPoint"); // 泵站信息
+        markers3 = new SuperMap.Layer.Markers("createPoint"); // 分水口信息
+        markers4 = new SuperMap.Layer.Markers("createPoint"); // 闸站信息
+        markers5 = new SuperMap.Layer.Markers("createPoint"); // 阀站信息
+        markers6 = new SuperMap.Layer.Markers("createPoint"); // 水质测站信息
+        markers7 = new SuperMap.Layer.Markers("createPoint"); // 事件监控
+        markers8 = new SuperMap.Layer.Markers("createPoint"); // 当前位置
+
+        //声明一个矢量图层 vectorLayer 控件，用来呈现画面要素
+        vectorLayer = new SuperMap.Layer.Vector("Vector Layer");
+        //实例化一个 DrawFeature 控件，调用绘制多边形的事件处理器 Handler.Polygon
+        drawPoint = new SuperMap.Control.DrawFeature(vectorLayer, SuperMap.Handler.Point);
+        //监听 featureadded 事件，当添加要素时会触发此事件
+        drawPoint.events.on({ "featureadded": drawCompleted });
+        //map上添加控件
+        map.addControl(drawPoint);
+
+        // supermap底图的添加
+        layer = new SuperMap.Layer.TiledDynamicRESTLayer("World", url, { transparent: true }, { maxResolution: "auto" }); //  用于对接 SuperMap iServer 的 REST 地图服务的分块动态栅格图层
+        layer.events.on({ "layerInitialized": addLayer }); // 用户可以在该事件的响应函数中将该图层添加到地图中
+        // 向地图中添加指定的单个图层
+        map.addLayer(markers);  //添加工程安全图层
+        map.addLayer(markers1); //水源信息
+        map.addLayer(markers2); //泵站信息
+        map.addLayer(markers3); //分水口信息
+        map.addLayer(markers4); //闸站信息
+        map.addLayer(markers5); //阀站信息
+        map.addLayer(markers6); //水质测站信息
+        map.addLayer(markers7); //事件监控
+        map.addLayer(markers8); //当前位置
+        // 激活控件
+        // drawPoint.activate()
+        shijian()
+    }
+    // 获取点击的坐标
+    function drawCompleted(eventArgs) {
+        // 获取传入参数 eventArgs 的几何信息
+        var geometry = eventArgs.feature.geometry;
+        var origin = new SuperMap.Geometry.Point(118.229, 37.275);
+        var polygon = SuperMap.Geometry.Polygon.createRegularPolygon(origin, 0.1, 50, 270);
+        var lineVector = new SuperMap.Feature.Vector(polygon);
+        vectorLayer.addFeatures(lineVector);
+
+    }
+    function addLayer() {
+        map.addLayers([tiandituLayer, layer, vectorLayer]);
+        map.setCenter(new SuperMap.LonLat(119.45908, 36.68166), 8); //设置地图的中心点
+        //添加覆盖物
+    }
+    //修改地图中心点
+    function panTo(lgtd,lttd){
+        map.panTo(new SuperMap.LonLat(lgtd,lttd),8)
+        CentralPoint(lgtd,lttd) //定位
+    }
+
+    autodivheight() // 尺寸方法
+    function autodivheight() {
+        var winHeight = 0;
+        if (window.innerHeight)
+            winHeight = window.innerHeight;
+        else if ((document.body) && (document.body.clientHeight))
+            winHeight = document.body.clientHeight;
+        if (document.documentElement && document.documentElement.clientHeight)
+            winHeight = document.documentElement.clientHeight;
+        //DIV高度为浏览器窗口高度的一半
+        document.getElementById("map").style.height = winHeight + "px";
+    }
+
+    // 定位中心图标
+    function CentralPoint(lgtd,lttd) {
+        var _maker = this
+        size = new SuperMap.Size(30, 30);
+        offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+        var icon = new SuperMap.Icon('./mapIcon/定位.png', size, offset);
+        var _maker = new SuperMap.Marker(new SuperMap.LonLat(lgtd, lttd), icon)
+        markers8.addMarker(_maker);
+    }
+    //水情水源信息
+    function waterRegime(data) { // 水情的水源
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/地表水水源地.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers1.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.day_q = item.day_q
+            _maker.all_q = item.all_q
+            _maker.tm = item.tm
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 150);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>水源名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>日水量(m³)</td>
+                            <td class='popup-feishi1'>${marker.day_q ? marker.day_q : ''}</td>
+                            <td class='popup-feishi'>累计水量(m³)</td>
+                            <td class='popup-feishi1'>${marker.all_q ? marker.all_q : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            // function onFeatureSelected(event) {
+            //     vectorLayer.removeAllFeatures();
+            //     var marker = this
+            //     closeVectorInfoWin();
+            //     var contentHTML = "<div style='font-size:12px; opacity: 0.8,margin:0'>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>" + marker.a + "</div>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>闸前水位(m):" + `${marker.upz ? marker.upz : ''}` + "</div>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>闸前水位(m):" + `${marker.dwz ? marker.dwz : ''}` + "</div>";
+            //     contentHTML += "</div>";
+            //     var popup = new SuperMap.Popup.FramedCloud(
+            //         "popwin",
+            //         new SuperMap.LonLat(marker.lgtd, marker.lttd),
+            //         new SuperMap.Size(80, 20),
+            //         contentHTML,
+            //         null,
+            //         true);
+            //     popup.autoSize = true
+            //     vectorInfoWin = popup;
+            //     map.addPopup(popup);
+            // }
+            //a.3. 销毁 Popup.FramedCloud 弹窗。
+            // function closeVectorInfoWin() {
+            //     if (vectorInfoWin) {
+            //         vectorInfoWin.hide();
+            //         vectorInfoWin.destroy();
+            //     }
+            // }
+
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 水情泵站的信息
+    function bengStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/泵站.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers2.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.tm = item.tm
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.gtq = item.gtq
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 170);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>泵前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>泵后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td colspan='3' class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            // function onFeatureSelected(event) {
+            //     vectorLayer.removeAllFeatures();
+            //     var marker = this
+            //     closeVectorInfoWin();
+            //     var contentHTML = "<div style='font-size:12px; opacity: 0.8,margin:0'>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>" + marker.a + "</div>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>泵前水位(m):" + `${marker.upz ? marker.upz : ''}` + "</div>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>泵前水位(m):" + `${marker.dwz ? marker.dwz : ''}` + "</div>";
+            //     contentHTML += "<div style='color:#0097dd;font-size:14px'>实时流量(m):" + `${marker.gtq ? marker.gtq : ''}` + "</div>";
+            //     contentHTML += "</div>";
+            //     var popup = new SuperMap.Popup.FramedCloud(
+            //         "popwin",
+            //         new SuperMap.LonLat(marker.lgtd, marker.lttd),
+            //         new SuperMap.Size(80, 20),
+            //         contentHTML,
+            //         null,
+            //         true);
+            //     popup.autoSize = true
+            //     vectorInfoWin = popup;
+            //     map.addPopup(popup);
+            // }
+            // //a.3. 销毁 Popup.FramedCloud 弹窗。
+            // function closeVectorInfoWin() {
+            //     if (vectorInfoWin) {
+            //         vectorInfoWin.hide();
+            //         vectorInfoWin.destroy();
+            //     }
+            // }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    //水情分水口信息
+    function feishuikou(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/分水口.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers3.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 170);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 水情闸站信息 上次修改到这了
+    function zhaStation(data) {
+        let jzList = []; //节制
+        let fsList = []; //分水
+        let dcList = []; //渡槽
+        let dhList = []; //到虹
+        let csList = []; //冲砂
+        let ckList = []; //出口
+        let ysList = []; //饮水
+        let hanList = [];//涵闸
+        let jsList = []; //进水
+        let xhList = []; //泄洪
+        for (var item of data) {
+            if (item.type === '1') {
+                jzList.push(item)
+            } else if (item.type === '2') {
+                fsList.push(item)
+            } else if (item.type === '9') {
+                dcList.push(item)
+            } else if (item.type === '8') {
+                dhList.push(item)
+            } else if (item.type === '10') {
+                csList.push(item)
+            } else if (item.type === '11') {
+                ckList.push(item)
+            } else if (item.type === '3') {
+                ysList.push(item)
+            } else if (item.type === '5') {
+                hanList.push(item)
+            } else if (item.type === '6') {
+                jsList.push(item)
+            } else if (item.type === '4') {
+                xhList.push(item)
+            }
+        }
+        jiezhiStation(jzList)  // 节制
+        fenshuiStation(fsList) //分水
+        ducaoStation(dcList)   // 渡槽
+        daohongStation(dhList)    //到虹
+        chongshaStation(csList)   //冲砂
+        chukouStation(ckList)   //出口
+        yinshuiStation(ysList) //饮水
+        hanStation(hanList)      //涵闸
+        jinshuiStation(jsList)    //进水
+        xiehongStation(xhList)   //泄洪
+
+    }
+    // 水情闸站下 节制闸
+    function jiezhiStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 分水闸
+    function fenshuiStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 渡槽闸
+    function ducaoStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/渡槽（梁式渡槽、涵洞渡槽、排洪槽）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 水情闸站下 到虹闸
+    function daohongStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/倒虹吸（渠、河）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 冲砂闸
+    function chongshaStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 出口闸
+    function chukouStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 引水闸
+    function yinshuiStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 涵闸
+    function hanStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/涵洞.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 进水闸
+    function jinshuiStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情闸站下 泄洪闸
+    function xiehongStation(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers4.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>闸站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>闸前水位</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>闸后水位</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                            <td class='popup-feishi'>闸门开度</td>
+                            <td class='popup-feishi1'>${marker.open_status ? marker.open_status : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+    // 水情 阀站
+    function faStation(data) {
+        let famen = []
+        let diaoya = []
+        for (let item of data) {
+            if (item.type_name === '阀门井') {
+                famen.push(item)
+            } else if (item.type_name === '调压阀') {
+                diaoya.push(item)
+            }
+        }
+        famenjing(famen)
+        diaoyafa(diaoya)
+    }
+
+    // 水情 阀站 阀门井
+    function famenjing(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/fa.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers5.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>阀站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>阀前压力(MPa)</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>阀前压力(MPa)</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td colspan='3' class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 水情 阀站 调压阀
+    function diaoyafa(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/fa.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers5.addMarker(_maker); // 将标记添加到指定的水情图层
+            _maker.a = item.slnm
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.upz = item.upz
+            _maker.dwz = item.dwz
+            _maker.tm = item.tm
+            _maker.gtq = item.gtq
+            _maker.open_status = item.open_status
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-feishi'>阀站名称</td>
+                            <td class='popup-feishi1'>${marker.a ? marker.a : ''}</td>
+                            <td class='popup-feishi'>监测时间</td>
+                            <td class='popup-feishi1'>${marker.tm ? marker.tm : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>阀前压力(MPa)</td>
+                            <td class='popup-feishi1'>${marker.upz ? marker.upz : ''}</td>
+                            <td class='popup-feishi'>阀前压力(MPa)</td>
+                            <td class='popup-feishi1'>${marker.dwz ? marker.dwz : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-feishi'>实时流量</td>
+                            <td colspan='3' class='popup-feishi1'>${marker.gtq ? marker.gtq : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > `
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 工程安全信息
+    function engineering(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/工程安全监测断面.png', size, offset);
+            if (item.devicePosition) {
+                var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.devicePosition.split(',')[0], item.devicePosition.split(',')[1]), icon)
+                markers.addMarker(_maker); // 将标记添加到指定的标记图层
+                _maker.a = item.deviceName
+                _maker.deviceCode = item.deviceCode
+                _maker.orgId = item.orgId;
+                _maker.lgtd = item.devicePosition.split(',')[0]
+                _maker.lttd = item.devicePosition.split(',')[1]
+                _maker.events.on({
+                    "click": onFeatureSelected,
+                    "touchend": onFeatureSelected,
+                    "scope": _maker
+                });
+            }
+            var infowin = null;
+            function onFeatureSelected(event) {
+                vectorLayer.removeAllFeatures();
+                var marker = this
+                closeVectorInfoWin();
+                fetch('http://124.128.244.106:9100/point/findAllByDeviceCode/' + marker.deviceCode, {
+                    method: 'GET',
+                    mode: 'cors',
+                }).then(function (response) {
+                    if (response.status !== 200) {
+                        return;
+                    }
+                    return response.json();
+                }).then((data) => {
+                    var markerPop = new SuperMap.InfoWindow(
+                        "chicken",
+                        marker.a,
+                        "元素信息",
+                        "example InfoWindow",
+                        true);
+                    markerPop.titleBox = true;
+                    markerPop.contentSize = new SuperMap.Size(400, 200);
+                    var html = '';
+                    // markerPop.render();
+                    //设置弹窗的位置                        
+                    markerPop.setLonLat(marker.getLonLat());
+                    for (var i = 0; i < data.data.length; i++) {
+                        html += "<tr><td class='popup-td1'>测点编码</td><td class='popup-td'><a onclick='cezhanTo(\"" + data.data[i].equ + "\",\"" + marker.orgId + "\",\"" + data.data[i].such + "\",\"" + marker.a + "\")'>" + data.data[i].pointId + "</a></td><td class='popup-td1'>测点种类</td><td class='popup-td'>" + data.data[i].such + "</td></tr>";
+                    }
+                    if (data.data.length > 0) {
+                        markerPop.setContentHTML(null, "<table class='popup-table'><tbody>" + html + "  </tbody></table> ");
+                    }
+                    if (data.data.length == 0) {
+                        markerPop.setContentHTML(null, "<table class='popup-table'><tbody><tr><td class='popup-td1'>闸上水位</td><td class='popup-td'></td></tr> <tr><td class='popup-td1'>闸下水位</td><td class='popup-td'></td></tr><tr><td class='popup-td1'>瞬时流量</td><td class='popup-td'></td></tr>  </tbody></table><input type='button' style='margin-left:10px;margin-top:10px' value='设施基础信息' class='btn btn-default'  onclick='deviceparam(\"" + marker.DEVICE_CODE + "\")'  /><input type='button' style='margin-left:30px;margin-top:10px' value='设施监测信息' class='btn btn-default'  onclick='monitor(" + JSON.stringify(data) + ")' /> ");
+                    }
+                    infowin = markerPop;
+                    //添加弹窗到map图层
+                    map.addPopup(markerPop);
+                })
+                // //创建一个具有指向和边框的浮动弹窗
+                // var popup = new SuperMap.Popup.FramedCloud(
+                //     "popwin",
+                //     new SuperMap.LonLat(maker.lgtd, maker.lttd),
+                //     null,
+                //     "事件名称：" + maker.a,
+                //     null,
+                //     true);
+                // vectorInfoWin = popup;
+                // //在地图中添加弹出窗口
+                // map.addPopup(popup);
+            };
+            //a.3. 销毁 Popup.FramedCloud 弹窗。
+            function closeVectorInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 水质信息测站 上次修改到此
+    function shuizhi(data) {
+        for (var item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/水质监测站点.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers6.addMarker(_maker); // 将标记添加到指定的水质图层
+            _maker.a = item.DEVICE_NAME
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.MN = item.MN
+            _maker.溶解氧传感器 = item.溶解氧传感器
+            _maker.电导率传感器 = item.电导率传感器
+            _maker.总硬度 = item.总硬度
+            _maker.氯化物 = item['氯化物（以Clˉ计）']
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-td1'>溶解氧传感器</td>
+                            <td class='popup-td'>${marker.溶解氧传感器 ? marker.溶解氧传感器 : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-td1'>电导率传感器</td>
+                            <td class='popup-td'>${marker.电导率传感器 ? marker.电导率传感器 : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-td1'>总硬度</td>
+                            <td class='popup-td'>${marker.总硬度 ? marker.总硬度 : ''}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-td1'>氯化物</td>
+                            <td class='popup-td'>${marker.氯化物 ? marker.氯化物 : ''}</td>
+                        </tr>
+                       </tbody >
+                       </table > 
+                       ` +
+                    "<input type='button' class= 'rightBtn' style='margin-left:80px;margin-top:10px;margin-right:10px' value='详情信息' class='btn btn-default'  onclick='abc(\"" + marker.MN + "\")' />"
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    //事件图层
+    function shijian(data) {
+        for (let item of data) {
+            var _maker = this
+            size = new SuperMap.Size(30, 30);
+            offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+            var icon = new SuperMap.Icon('./mapIcon/事件.png', size, offset);
+            var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.lgtd, item.lttd), icon)
+            markers7.addMarker(_maker); // 将标记添加到指定的水质图层
+            _maker.a = item.event_name
+            _maker.lgtd = item.lgtd
+            _maker.lttd = item.lttd
+            _maker.event_type_name = item.event_type_name
+            _maker.appear_user_name = item.appear_user_name
+            _maker.dept_name = item.dept_name
+            _maker.addr = item.addr
+            _maker.item = item
+            _maker.events.on({
+                "click": openInfoWin,
+                "touchend": openInfoWin,
+                "scope": _maker
+            });
+            var infowin = null;
+            function openInfoWin(event) {
+                map.removeAllPopup();
+                closeInfoWin();
+                var marker = this;
+                console.log(marker.item)
+                var markerPop = new SuperMap.InfoWindow(
+                    "chicken",
+                    marker.a,
+                    "元素信息",
+                    "example InfoWindow",
+                    true);
+                markerPop.titleBox = true;
+                markerPop.contentSize = new SuperMap.Size(300, 200);
+                markerPop.setLonLat(marker.getLonLat());
+                markerPop.setContentHTML(null,
+                    `<table class='popup-table'>
+                        <tbody>
+                        <tr>
+                            <td class='popup-td1'>事件类型</td>
+                            <td class='popup-td'>${marker.event_type_name}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-td1'>发起人</td>
+                            <td class='popup-td'>${marker.appear_user_name}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-td1'>所属单位</td>
+                            <td class='popup-td'>${marker.dept_name}</td>
+                        </tr>
+                        <tr>
+                            <td class='popup-td1'>地址</td>
+                            <td class='popup-td'>${marker.addr}</td>
+                        </tr>
+                       </tbody >
+                       </table > 
+                       ` +
+                    "<input type='button' class= 'rightBtn' style='margin-left:80px;margin-top:10px;margin-right:10px' value='详情信息' class='btn btn-default'  onclick='sj(" + JSON.stringify(marker.item) + ")' />"
+                );
+                infowin = markerPop;
+                map.addPopup(markerPop);
+            }
+            function closeInfoWin() {
+                if (infowin) {
+                    try {
+                        infowin.hide();
+                        infowin.destroy();
+                    } catch (e) {
+                    }
+                }
+            }
+        }
+    }
+
+    // 与RN的交互
+    function cezhanTo(sctionId, offcecode, such, station) { //工程跳转详情信息的
+        var obj = {
+            "name": "工程",
+            "sctionId": sctionId,
+            "offcecode": offcecode,
+            "such": such,
+            "station": station
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+
+    function abc(mn) { // 水质测站的mn号
+        var obj = {
+            "name": "水质",
+            "mn": mn,
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+    function sj(item) { // 水质测站的mn号
+        var obj = {
+            "name": "事件",
+            "mn": item,
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+
+
+    function deviceparamTo(name) {
+        var obj = {
+            "name": "a",
+            "stionName": name,
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+
+    function abcTo(name) {
+        var obj = {
+            "name": "b",
+            "station": name
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+    function abcK() {
+        var obj = {
+            "name": "c",
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+</script>
+
+
+</html>

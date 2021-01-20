@@ -1,0 +1,247 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>工程图层</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="./libs/SuperMap.Include.js"></script>
+    <script src="./libs/InfoWindows.js"></script>
+    <link href="./libs/infoWindows.css" rel="stylesheet" />
+    <link href="./theme/default/style.css" rel="stylesheet" />
+</head>
+
+<style>
+    #chicken_groupDiv {
+        width: 100%;
+    }
+    div.smMap {
+        border: 0
+    }
+    .popup-table {
+        margin: 10px;
+        border-spacing: 0
+    }
+    .popup-td {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+    }
+    .popup-td1 {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+        background-color: rgba(69, 214, 194, 0.41);
+    }
+    .linebg {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        margin: 0px 10px 0px 10px;
+    }
+    .linebgTo {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        margin: 0px 10px 0px 10px;
+    }
+</style>
+
+<body onload="init()" style="margin: 0 auto;">
+    <div id="map" style="position:absolute;width: 100%;"></div>
+</body>
+<script type="text/javascript">
+    //声明变量map、layer、url SuperMap.Layer.TiledDynamicRESTLayer
+    var map, layer, vectorLayer, markers, tiandituLayer
+    url = "http://124.128.244.106:9100/iserver/services/map-JDDSgis/rest/maps/JDDS";
+    var vectorInfoWin, markerInfoWin;
+    function init() {
+        tiandituLayer = new SuperMap.Layer.WMTS({
+            name: "vec",
+            url: "http://www.sdmap.gov.cn/tileservice/SDPubMap?TOPLEFTCORNEREXCHANGE=0&DPI=96",
+            layer: "vec",
+            style: "default",
+            matrixSet: "c",
+            format: "tiles",
+            opacity: 1,
+            requestEncoding: "KVP"
+        });
+        map = new SuperMap.Map("map", {
+            // 控件的添加位置 比如 鹰眼 大小 比例尺
+            controls: [
+                new SuperMap.Control.Navigation(
+                    {
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    }
+                ),
+                // new SuperMap.Control.ScaleLine(),
+                // new SuperMap.Control.OverviewMap(),
+                new SuperMap.Control.Zoom(),
+                new SuperMap.Control.MousePosition()
+            ],
+            //地图所有图层都被当做叠加图层来使用。
+            allOverlays: true
+        });
+        // 提示框的添加
+        markers = new SuperMap.Layer.Markers("createPoint");
+        // supermap底图的添加
+        layer = new SuperMap.Layer.TiledDynamicRESTLayer("World", url, { transparent: true }, { maxResolution: "auto" });
+        layer.events.on({ "layerInitialized": addLayer });
+        map.addLayer(markers);
+        reservoir()
+    }
+    function addLayer() {
+        map.addLayers([tiandituLayer, layer]);
+        map.setCenter(new SuperMap.LonLat(120.212, 36.370), 13);
+        //添加覆盖物
+    }
+
+
+    autodivheight() // 尺寸方法
+    function autodivheight() {
+        var winHeight = 0;
+        if (window.innerHeight)
+            winHeight = window.innerHeight;
+        else if ((document.body) && (document.body.clientHeight))
+            winHeight = document.body.clientHeight;
+        if (document.documentElement && document.documentElement.clientHeight)
+            winHeight = document.documentElement.clientHeight;
+        //DIV高度为浏览器窗口高度的一半
+        document.getElementById("map").style.height = winHeight + "px";
+    }
+
+
+    function reservoir() {
+        fetch('http://124.128.244.106:9100/device/treeDataToKPo', {
+            method: 'GET',
+            mode: 'cors',
+        }).then(function (response) {
+            if (response.status !== 200) {
+
+                return;
+            }
+            return response.json();
+        }).then((e) => {
+            console.log(e)
+            for (let item of e) {
+                var _maker = this
+                size = new SuperMap.Size(30, 30);
+                offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+                if (item.deviceClass === "AAL") {
+                    var icon = new SuperMap.Icon('./mapIcon/工程安全监测断面.png', size, offset);
+                } else {
+                    var icon = new SuperMap.Icon('./mapIcon/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+                }
+                var _maker = new SuperMap.Marker(new SuperMap.LonLat(item.devicePosition.split(',')[0], item.devicePosition.split(',')[1]), icon)
+                _maker.a = item.deviceName;
+                _maker.type = item.type;
+                _maker.suo = item.suo;
+                markers.addMarker(_maker);
+                _maker.events.on({
+                    "click": openInfoWin,
+                    "touchend": openInfoWin,
+                    "scope": _maker
+                })
+                function openInfoWin(event) {
+                    map.removeAllPopup();
+                    var marker = this;
+                    fetch('http://124.128.244.106:9100/ziDong/zicetankuang?name=' + encodeURIComponent(marker.a), {
+                        method: 'GET',
+                        mode: 'cors',
+
+                    }).then(function (response) {
+                        if (response.status !== 200) {
+                            return;
+                        }
+                        return response.json();
+                    }).then((e) => {
+                        const data = e;
+                        var markerPop = new SuperMap.InfoWindow(
+                            "chicken",
+                            marker.a,
+                            "元素信息",
+                            "example InfoWindow",
+                            true);
+                        markerPop.titleBox = true;
+                        if (marker.suo != '进水闸' && marker.suo != '泄水闸' && marker.suo != '放水闸') {
+                            markerPop.contentSize = new SuperMap.Size(300, 300);
+                        } else {
+                            markerPop.contentSize = new SuperMap.Size(300, 100);
+                        }
+                        var html = '';
+                        //设置弹窗的位置
+                        markerPop.setLonLat(marker.getLonLat());
+                        var ui = '位移';
+                        var yu = '渗压';
+                        if (data.length > 1) {
+                            var x = "△X" + ":" + (data[0].x ? data[0].x : '');
+                            var y = "△Y" + ":" + (data[0].y ? data[0].y : '');
+                            var z = "△H" + ":" + (data[0].z ? data[0].z : '');
+                            var time = new Date(data[0].time);
+                            time = time.getFullYear() + '-' + (time.getMonth() + 1) + '-' + time.getDate();
+                            html += "<div class='linebg' width='100%'><div class=''>" + x + "</div><div class=''>" + y + "</div><div class=''>" + z + "</div></div>";
+                            // html += "<div class='linebg' width='100%'><a href=''>查看详情</a></div>";
+                            // html += "<tr><th width='20%' class='popup-td1'>名称</th><th width='20%' class='popup-td1'>时间</th></td><th width='20%' class='popup-td1'>水位高程</th><th width='20%' class='popup-td1'>浸润线</th><th width='20%' class='popup-td1'>&nbsp;</th></tr>";
+                            html += "<tr><th width='20%' class='popup-td1'>名称</th><th width='20%' class='popup-td1'>时间</th></td><th width='20%' class='popup-td1'>水位高程</th><th width='20%' class='popup-td1'>浸润线</th></tr>";
+                            for (var i = 1; i < data.length; i++) {
+                                var d = new Date(data[i].time);
+                                var d1 = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+                                d = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
+                                // html += "<tr><td class='popup-td1'>" + data[i].name + "</td><td class='popup-td1'>" + d + "</td><td class='popup-td1'>" + data[i].water_elevation + "</td><td class='popup-td1'>" + data[i].sk + "</td><td class='popup-td1'><a href='${ctx}/sys/measuring/zidongcedian?id=" + data[i].id + "&type=" + yu + "&time=" + d1 + "' target=\"_blank\">查看详情</a></td></tr>";
+                                html += "<tr><td class='popup-td1'>" + data[i].name + "</td><td class='popup-td1'>" + d + "</td><td class='popup-td1'>" + data[i].water_elevation + "</td><td class='popup-td1'>" + data[i].sk + "</td></tr>";
+                            }
+                        } else if (data.length == 1) {
+                            var x = "△X" + ":" + data[0].x;
+                            var y = "△Y" + ":" + data[0].y;
+                            var z = "△H" + ":" + data[0].z;
+                            var time = new Date(data[0].time);
+                            time = time.getFullYear() + '-' + (time.getMonth() + 1) + '-' + time.getDate();
+                            html += "<div class='linebg' width='100%'><div class=''>" + x + "</div><div class=''>" + y + "</div><div class=''>" + z + "</div></div>";
+                            // html += "<div class='linebg' width='100%'><a href=''>查看详情</a></div>";
+                        } else {
+                            var x = "△X" + ":";
+                            var y = "△Y" + ":";
+                            var z = "△H" + ":";
+                            html += "<div class='linebg' width='100%'><div class=''>" + x + "</div><div class=''>" + y + "</div><div class=''>" + z + "</div></div>";
+                            // html += "<div class='linebg' width='100%'><a href=''>查看详情</a></div>";
+                        }
+                        infowin = markerPop;
+                        markerPop.setContentHTML(null, "<table id='cedian2' class='popup-table'><tbody>" + html + "  </tbody></table> ");
+                        //添加弹窗到map图层
+                        map.addPopup(markerPop);
+                    })
+                }
+                function closeInfoWin() {
+                    if (infowin) {
+                        try {
+                            infowin.hide();
+                            infowin.destroy();
+                        } catch (e) {
+                        }
+                    }
+                }
+            }
+        });
+    }
+    function cezhanTo(sctionId, offcecode, such, station) {
+        var obj = {
+            "name": "工程",
+            "sctionId": sctionId,
+            "offcecode": offcecode,
+            "such": such,
+            "station": station
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+</script>
+
+
+</html>

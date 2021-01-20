@@ -1,0 +1,554 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>水情图层</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="./libs/SuperMap.Include.js"></script>
+    <script src="./libs/InfoWindows.js"></script>
+    <link href="./libs/infoWindows.css" rel="stylesheet" />
+    <link href="./theme/default/style.css" rel="stylesheet" />
+</head>
+
+<style>
+    .popup-table {
+        margin: 10px;
+        border-spacing: 0
+    }
+
+    .popup-td {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+    }
+
+    .popup-td1 {
+        border: 1px solid #5bc8ff;
+        padding: 6px;
+        text-align: center;
+        width: 150px !important;
+        font-size: 12px;
+        background-color: rgba(69, 214, 194, 0.41);
+    }
+
+    div.smMap {
+        border: 0
+    }
+
+    .main {
+        height: 75px;
+        background-color: #fafcff;
+        border-radius: 6px;
+        border: solid 1px #2a579a;
+        overflow: hidden
+    }
+
+    .topBtnBox {
+        position: absolute;
+        z-index: 999;
+        width: 100%;
+        bottom: 0;
+    }
+
+    .topBtnBox .main .equipment {
+        float: left;
+        width: 16.5%;
+        text-align: center;
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    .topBtnBox .main .equipment div {
+        font-size: 16px;
+        color: #2a569b;
+    }
+
+    .leftBtnTo {
+        width: 90px;
+        height: 40px;
+        text-align: center;
+        float: left;
+        padding: 0;
+        background-color: #2a569b;
+        border-width: 0;
+        color: #fff;
+    }
+</style>
+
+<body onload="init()" style="margin: 0 auto;">
+    <div class="topBtnBox">
+        <div class="main">
+            <div class="equipment" id="beng" onclick="beng()" selectcolor="a">
+                <img id="beng1" src="./img/beng.png" alt="" />
+                <div id="beng2" style="">泵</div>
+            </div>
+            <div class="equipment" id="zha" onclick="zha()" selectcolor="a">
+                <img id="zha1" src="./img/zha.png" alt="" />
+                <div id="zha2" style="">闸</div>
+            </div>
+            <div class="equipment" id="fa" onclick="fa()" selectcolor="a">
+                <img id="fa1" src="./img/fa.png" alt="" />
+                <div id="fa2" style="">阀</div>
+            </div>
+            <div class="equipment" id="daohong" onclick="daohong()" selectcolor="a">
+                <img id="daohong1" src="./img/daohong.png" alt="" />
+                <div id="daohong2" style="">到虹</div>
+            </div>
+            <div class="equipment" id="ducao" onclick="ducao()" selectcolor="a">
+                <img id="ducao1" src="./img/ducao.png" alt="" />
+                <div id="ducao2" style="">渡槽</div>
+            </div>
+            <div class="equipment" id="fenshuikou" onclick="fenshuikou()" selectcolor="a">
+                <img id="fenshuikou1" src="./img/fenshuikou.png" alt="" />
+                <div id="fenshuikou2" style="">分水口</div>
+            </div>
+        </div>
+    </div>
+    <div id="map" style="position:absolute;width: 100%;"></div>
+</body>
+<script type="text/javascript">
+    //声明变量map、layer、url SuperMap.Layer.TiledDynamicRESTLayer
+    var map, layer, vectorLayer, markers,marker1
+        url = "http://124.128.244.106:9100/iserver/services/map-JDDSgis/rest/maps/JDDS";
+    var vectorInfoWin, markerInfoWin;
+    function init() {
+        map = new SuperMap.Map("map", {
+            // 控件的添加位置 比如 鹰眼 大小 比例尺
+            controls: [
+                new SuperMap.Control.Navigation(
+                    {
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    }
+                ),
+                // new SuperMap.Control.ScaleLine(),
+                // new SuperMap.Control.OverviewMap(),
+                new SuperMap.Control.Zoom(),
+                new SuperMap.Control.MousePosition()
+            ],
+            //地图所有图层都被当做叠加图层来使用。
+            allOverlays: true
+        });
+        // 提示框的添加
+        markers = new SuperMap.Layer.Markers("createPoint");
+        markers1 = new SuperMap.Layer.Markers("createPoint");
+        // supermap底图的添加
+        layer = new SuperMap.Layer.TiledDynamicRESTLayer("World", url, { transparent: true }, { maxResolution: "auto" });
+        layer.events.on({ "layerInitialized": addLayer });
+        map.addLayer(markers);
+        map.addLayer(markers1);
+        // map.addLayers([tiandituLayer, layer1])
+    }
+    function addLayer() {
+        map.addLayers([layer]);
+        map.setCenter(new SuperMap.LonLat(119.45908, 36.68166), 8);
+        //添加覆盖物
+    }
+
+
+    autodivheight() // 尺寸方法
+    function autodivheight() {
+        var winHeight = 0;
+        if (window.innerHeight)
+            winHeight = window.innerHeight;
+        else if ((document.body) && (document.body.clientHeight))
+            winHeight = document.body.clientHeight;
+        if (document.documentElement && document.documentElement.clientHeight)
+            winHeight = document.documentElement.clientHeight;
+        //DIV高度为浏览器窗口高度的一半
+        document.getElementById("map").style.height = winHeight + "px";
+    }
+
+    // 泵站
+    function beng() {
+        var ImgSrc = document.getElementById("beng1")
+        var selectcolor = document.getElementById('beng').getAttribute('selectcolor');
+        if (selectcolor == "a") {
+            document.getElementById('beng').setAttribute('selectcolor', "b");
+            ImgSrc.src = './img/beng1.png';
+            document.getElementById("beng2").style.color = "#ff7345"
+            createBeng()
+        } else if (selectcolor == "b") {
+            document.getElementById('beng').setAttribute('selectcolor', "a");
+            ImgSrc.src = './img/beng.png'
+            document.getElementById("beng2").style.color = "#2a569b"
+            markers.clearMarkers()
+        }
+    }
+
+    function createBeng() {
+        fetch('http://124.128.244.106:9100/gate/listDataKXUIY', {
+            method: 'GET',
+            mode: 'cors',
+        }).then(function (response) {
+            if (response.status !== 200) {
+
+                return;
+            }
+            return response.json();
+        }).then((e) => {
+            var data = e[0]
+            for (var i = 0; i < data.length; i++) {
+                var a1 = data[i]
+                var _maker = this
+                size = new SuperMap.Size(30, 30);
+                offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+                var icon = new SuperMap.Icon('./img/泵站.png', size, offset);
+                var _maker = new SuperMap.Marker(new SuperMap.LonLat(data[i][1].LGTD, data[i][1].LTTD), icon)
+                _maker.a = data[i][0].DEVICE_NAME;
+                _maker.slcd = data[i][0].DEVICE_CODE;
+                markers.addMarker(_maker);
+                _maker.events.on({
+                    "click": openInfoWin,
+                    "touchend": openInfoWin,
+                    "scope": _maker
+                });
+                var infowin = null;
+                function openInfoWin(event) {
+                    map.removeAllPopup();
+                    closeInfoWin();
+                    var marker = this;
+                    var markerPop = new SuperMap.InfoWindow(
+                        "chicken",
+                        marker.a,
+                        "元素信息",
+                        "example InfoWindow",
+                        true);
+                    markerPop.titleBox = true;
+                    markerPop.contentSize = new SuperMap.Size(300, 200);
+                    markerPop.setLonLat(marker.getLonLat());
+
+                    var type;
+                    var kb = a1[2].启用状态;
+                    if (kb == null) {
+                        kb = ''
+                    }
+                    if (kb == '0') {
+                        kb = '未启用'
+                    } else if (kb == '1') {
+                        kb = '启用'
+                    } else if (kb == '2') {
+                        kb = '启用'
+                    }
+                    var kb1 = a1[2].工程等级;
+                    if (kb1 == null) {
+                        kb1 = ''
+                    }
+                    var kb2 = a1[2].是否接入自动化
+                    if (kb2 == null) {
+                        kb2 = ''
+                    } else if (kb2 == '1') {
+                        kb2 = '是'
+                    } else if (kb2 == '0') {
+                        kb2 = '否'
+                    }
+                    var kb3 = a1[2].桩号
+                    if (kb3 == null) {
+                        kb3 = ''
+                    }
+
+                    var kb4 = a1[1].LTTD
+                    if (kb4 == null) {
+                        kb4 = ''
+                    }
+                    var kb5 = a1[1].LGTD
+                    if (kb5 == null) {
+                        kb5 = ''
+                    }
+                    var kb6 = a1[2].主机组
+                    if (kb6 == null) {
+                        kb6 = ''
+                    }
+                    var kb7 = a1[2].调节机组
+                    if (kb7 == null) {
+                        kb7 = ''
+                    }
+                    var kb8 = a1[2].进水池桩号
+                    if (kb8 == null) {
+                        kb8 = ''
+                    }
+                    var kb9 = a1[2].出水池桩号
+                    if (kb9 == null) {
+                        kb9 = ''
+                    }
+                    var kb10 = a1[2].是否交叉建筑物
+                    if (kb10 == null) {
+                        kb10 = ''
+                    } else if (kb10 == '1') {
+                        kb10 = '是'
+                    } else if (kb10 == '0') {
+                        kb10 = '否'
+                    }
+                    markerPop.setContentHTML(null, "<table class='popup-table'><tbody><tr><td class='popup-td1'>启用状态</td><td class='popup-td'>" + kb + "</td></tr> <tr><td class='popup-td1'>工程等级</td><td class='popup-td'>" + kb1 + "</td></tr> <tr><td class='popup-td1'>是否接入自动化</td><td class='popup-td'>" + kb2 + "</td></tr> <tr><td class='popup-td1'>桩号</td><td class='popup-td'>" + kb3 + "</td></tr><tr><td class='popup-td1'>纬度</td><td class='popup-td'>" + kb4 + "</td></tr><tr><td class='popup-td1'>经度</td><td class='popup-td'>" + kb5 + "</td></tr><tr><td class='popup-td1'>主机组</td><td class='popup-td'>" + kb6 + "</td></tr><tr><td class='popup-td1'>调节机组</td><td class='popup-td'>" + kb7 + "</td></tr><tr><td class='popup-td1'>进水池主桩号</td><td class='popup-td'>" + kb8 + "</td></tr><tr><td class='popup-td1'>出水池主桩号</td><td class='popup-td'>" + kb9 + "</td></tr><tr><td class='popup-td1'>是否交叉建筑物</td><td class='popup-td'>" + kb10 + "</td></tr></tbody></table><input type='button' class='leftBtnTo' style='margin-left:5px' value='监测详情信息' class='btn btn-default' " +
+                        " onclick='deviceparamTo(\"" + marker.a + "\")'  /><input type='button' class='leftBtnTo' style='margin-left:5px' value='工程安全信息' class='btn btn-default'  onclick='abcTo(\"" + marker.a + "\")' /><input type='button' class= 'leftBtnTo' style='margin-left:5px' value='视频信息详情' class='btn btn-default'  onclick='abcK()' /> ");
+                    infowin = markerPop;
+                    map.addPopup(markerPop);
+                }
+                function closeInfoWin() {
+                    if (infowin) {
+                        try {
+                            infowin.hide();
+                            infowin.destroy();
+                        } catch (e) {
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+
+    // 闸站
+    function zha() {
+        var ImgSrc = document.getElementById("zha1")
+        var selectcolor = document.getElementById('zha').getAttribute('selectcolor');
+        if (selectcolor == "a") {
+            document.getElementById('zha').setAttribute('selectcolor', "b");
+            ImgSrc.src = './img/zha1.png';
+            document.getElementById("zha2").style.color = "#ff7345"
+            createzha()
+        } else if (selectcolor == "b") {
+            markers1.clearMarkers()
+            document.getElementById('zha').setAttribute('selectcolor', "a");
+            ImgSrc.src = './img/zha.png'
+            document.getElementById("zha2").style.color = "#2a569b"
+        }
+    }
+    function createzha() {
+        fetch('http://124.128.244.106:9100/gate/listDataKXUIY', {
+            method: 'GET',
+            mode: 'cors',
+        }).then(function (response) {
+            if (response.status !== 200) {
+                return;
+            }
+            return response.json();
+        }).then((e) => {
+            var data = e[1]
+            for (var i = 0; i < data.length; i++) {
+                var a1 = data[i]
+                var _maker = this
+                size = new SuperMap.Size(30, 30);
+                offset = new SuperMap.Pixel(-(size.w / 2), -size.h);
+                var icon = new SuperMap.Icon('./img/水闸（进口闸、出口闸、分水闸、退水闸、节制闸、引水闸、排冰闸、检修闸）.png', size, offset);
+                var _maker = new SuperMap.Marker(new SuperMap.LonLat(data[i][1].LGTD, data[i][1].LTTD), icon)
+                _maker.a = data[i][0].DEVICE_NAME;
+                _maker.slcd = data[i][0].DEVICE_CODE;
+                markers1.addMarker(_maker);
+                _maker.events.on({
+                    "click": openInfoWin,
+                    "touchend": openInfoWin,
+                    "scope": _maker
+                });
+                var infowin = null;
+                function openInfoWin(event) {
+                    map.removeAllPopup();
+                    closeInfoWin();
+                    var marker = this;
+                    var markerPop = new SuperMap.InfoWindow(
+                        "chicken",
+                        marker.a,
+                        "元素信息",
+                        "example InfoWindow",
+                        true);
+                    markerPop.titleBox = true;
+                    markerPop.contentSize = new SuperMap.Size(300, 200);
+                    markerPop.setLonLat(marker.getLonLat());
+
+                    var type;
+                    var kb = a1[2].启用状态;
+                    if (kb == null) {
+                        kb = ''
+                    }
+                    if (kb == '0') {
+                        kb = '未启用'
+                    } else if (kb == '1') {
+                        kb = '启用'
+                    } else if (kb == '2') {
+                        kb = '启用'
+                    }
+                    var kb1 = a1[2].工程等级;
+                    if (kb1 == null) {
+                        kb1 = ''
+                    }
+                    var kb2 = a1[2].是否接入自动化
+                    if (kb2 == null) {
+                        kb2 = ''
+                    } else if (kb2 == '1') {
+                        kb2 = '是'
+                    } else if (kb2 == '0') {
+                        kb2 = '否'
+                    }
+                    var kb3 = a1[2].桩号
+                    if (kb3 == null) {
+                        kb3 = ''
+                    }
+
+                    var kb4 = a1[1].LTTD
+                    if (kb4 == null) {
+                        kb4 = ''
+                    }
+                    var kb5 = a1[1].LGTD
+                    if (kb5 == null) {
+                        kb5 = ''
+                    }
+                    var kb6 = a1[2].主机组
+                    if (kb6 == null) {
+                        kb6 = ''
+                    }
+                    var kb7 = a1[2].调节机组
+                    if (kb7 == null) {
+                        kb7 = ''
+                    }
+                    var kb8 = a1[2].进水池桩号
+                    if (kb8 == null) {
+                        kb8 = ''
+                    }
+                    var kb9 = a1[2].出水池桩号
+                    if (kb9 == null) {
+                        kb9 = ''
+                    }
+                    var kb10 = a1[2].是否交叉建筑物
+                    if (kb10 == null) {
+                        kb10 = ''
+                    } else if (kb10 == '1') {
+                        kb10 = '是'
+                    } else if (kb10 == '0') {
+                        kb10 = '否'
+                    }
+                    markerPop.setContentHTML(null, "<table class='popup-table'><tbody><tr><td class='popup-td1'>启用状态</td><td class='popup-td'>" + kb + "</td></tr> <tr><td class='popup-td1'>工程等级</td><td class='popup-td'>" + kb1 + "</td></tr> <tr><td class='popup-td1'>是否接入自动化</td><td class='popup-td'>" + kb2 + "</td></tr> <tr><td class='popup-td1'>桩号</td><td class='popup-td'>" + kb3 + "</td></tr><tr><td class='popup-td1'>纬度</td><td class='popup-td'>" + kb4 + "</td></tr><tr><td class='popup-td1'>经度</td><td class='popup-td'>" + kb5 + "</td></tr><tr><td class='popup-td1'>主机组</td><td class='popup-td'>" + kb6 + "</td></tr><tr><td class='popup-td1'>调节机组</td><td class='popup-td'>" + kb7 + "</td></tr><tr><td class='popup-td1'>进水池主桩号</td><td class='popup-td'>" + kb8 + "</td></tr><tr><td class='popup-td1'>出水池主桩号</td><td class='popup-td'>" + kb9 + "</td></tr><tr><td class='popup-td1'>是否交叉建筑物</td><td class='popup-td'>" + kb10 + "</td></tr></tbody></table><input type='button' class='leftBtnTo' style='margin-left:5px' value='监测详情信息' class='btn btn-default' " +
+                        " onclick='deviceparamTo(\"" + marker.a + "\")'  /><input type='button' class='leftBtnTo' style='margin-left:5px' value='工程安全信息' class='btn btn-default'  onclick='abcTo(\"" + a1[0].DEVICE_CODE + "\",\"" + marker.a + "\")' /><input type='button' class= 'leftBtnTo' style='margin-left:5px' value='视频信息详情' class='btn btn-default'  onclick='abcK(" + JSON.stringify(type) + ",\"" + marker.a + "\")' /> ");
+                    infowin = markerPop;
+                    map.addPopup(markerPop);
+                }
+                function closeInfoWin() {
+                    if (infowin) {
+                        try {
+                            infowin.hide();
+                            infowin.destroy();
+                        } catch (e) {
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 阀站
+    function fa() {
+        var ImgSrc = document.getElementById("fa1")
+        var selectcolor = document.getElementById('fa').getAttribute('selectcolor');
+        if (selectcolor == "a") {
+            document.getElementById('fa').setAttribute('selectcolor', "b");
+            ImgSrc.src = './img/fa1.png';
+            document.getElementById("fa2").style.color = "#ff7345"
+            // createFa()
+        } else if (selectcolor == "b") {
+            document.getElementById('fa').setAttribute('selectcolor', "a");
+            ImgSrc.src = './img/fa.png'
+            document.getElementById("fa2").style.color = "#2a569b"
+        }
+    }
+    // 到虹
+    function daohong() {
+        var ImgSrc = document.getElementById("daohong1")
+        var selectcolor = document.getElementById('daohong').getAttribute('selectcolor');
+        if (selectcolor == "a") {
+            document.getElementById('daohong').setAttribute('selectcolor', "b");
+            ImgSrc.src = './img/daohong1.png';
+            document.getElementById("daohong2").style.color = "#ff7345"
+            // createFa()
+        } else if (selectcolor == "b") {
+            document.getElementById('daohong').setAttribute('selectcolor', "a");
+            ImgSrc.src = './img/daohong.png'
+            document.getElementById("daohong2").style.color = "#2a569b"
+        }
+    }
+
+    // 渡槽
+    function ducao() {
+        var ImgSrc = document.getElementById("ducao1")
+        var selectcolor = document.getElementById('ducao').getAttribute('selectcolor');
+        if (selectcolor == "a") {
+            document.getElementById('ducao').setAttribute('selectcolor', "b");
+            ImgSrc.src = './img/ducao1.png';
+            document.getElementById("ducao2").style.color = "#ff7345"
+            // createFa()
+        } else if (selectcolor == "b") {
+            document.getElementById('ducao').setAttribute('selectcolor', "a");
+            ImgSrc.src = './img/ducao.png'
+            document.getElementById("ducao2").style.color = "#2a569b"
+        }
+    }
+
+    // 分水口
+    function fenshuikou() {
+        var ImgSrc = document.getElementById("fenshuikou1")
+        var selectcolor = document.getElementById('fenshuikou').getAttribute('selectcolor');
+        if (selectcolor == "a") {
+            document.getElementById('fenshuikou').setAttribute('selectcolor', "b");
+            ImgSrc.src = './img/fenshuikou1.png';
+            document.getElementById("fenshuikou2").style.color = "#ff7345"
+            // createFa()
+        } else if (selectcolor == "b") {
+            document.getElementById('fenshuikou').setAttribute('selectcolor', "a");
+            ImgSrc.src = './img/fenshuikou.png'
+            document.getElementById("fenshuikou2").style.color = "#2a569b"
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    function deviceparamTo(name) {
+        var obj = {
+            "name": "a",
+            "stionName": name,
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+
+    function abcTo(name) {
+        var obj = {
+            "name": "b",
+            "station":name
+        };
+        var data = JSON.stringify(obj)        
+        window.ReactNativeWebView.postMessage(data);
+    }
+    function abcK(){
+        var obj = {
+            "name": "c",
+        };
+        var data = JSON.stringify(obj)
+        window.ReactNativeWebView.postMessage(data);
+    }
+</script>
+
+
+</html>
